@@ -4,7 +4,15 @@ import torch.nn.functional as F
 class Agent(nn.Module):
     def __init__(self):
         super(Agent,self).__init__()     
-        self.feature_extract =  nn.Sequential(nn.Linear(3*56*56*4*4,256),
+        self.feature_extract =  nn.Sequential(nn.Linear(8*56*56*2*2,256),
+                                    nn.ReLU(),
+                                #     nn.Dropout(),
+                                    nn.Linear(256,64),
+                                    nn.ReLU(),
+                                    )
+        self.conv1 = nn.Conv2d(3,8,kernel_size=3,stride=1,padding=1) # 按照公式计算后经过卷积层不改变尺寸
+        self.pool = nn.MaxPool2d(2,2)
+        self.feature_extract_bid =  nn.Sequential(nn.Linear(8*56*56*2*2,256),
                                     nn.ReLU(),
                                 #     nn.Dropout(),
                                     nn.Linear(256,64),
@@ -17,11 +25,14 @@ class Agent(nn.Module):
         self.bn = nn.BatchNorm1d(1)
 
     def forward(self, x):
-        x = x.view(-1, 3 * 56* 56 *4*4)
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.dp(x)
+        x = x.view(-1, 8 * 56* 56 *2*2)
         out = self.feature_extract(x)
+        out_bid = self.feature_extract_bid(x)
         pred = self.classifier(out)
         
-        bid = self.bidder(torch.cat([out,pred], dim=1))
+        bid = self.bidder(torch.cat([out_bid,pred], dim=1))
         bid = self.bn(bid)
         bid = self.sca_fc(bid)
 

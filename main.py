@@ -109,37 +109,41 @@ def train_seperate(train_loader, device, agent1, agent2, optimizer1, optimizer2)
         pred1, bid1, out1 = agent1(images)
         pred2, bid2, out2 = agent2(images)
         # print(pred1)
+        # loss1 = F.cross_entropy(pred1, labels)
         pred1 = F.softmax(pred1, dim=1)
         bids1 = torch.stack([bid1, bid2.detach()], dim=1)
         probs1 = F.softmax(bids1, dim=1)
         c1 = bid1 * probs1[:, 0]                                                                                                                                                       + bid2.detach() * probs1[:, 1]   
-        log_p1 = (torch.log(pred1+math.exp(-20)))
+        log_p1 = (torch.log(pred1+math.exp(-50)))
         
         one_hot = torch.zeros(pred1.shape,dtype=float,device='cuda:0').scatter_(1, torch.unsqueeze(labels, dim=1),1)
 
-        # crite2 = nn.MSELoss()
-        tmp = out2.detach().clone()
-        # loss1_2 = -crite2(out1, tmp)
-        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1)*probs1[:,1] + c1 #TODO how does the gradient go?
-        # it seems like if we use bid1 in the () we will get bad results
+        # # crite2 = nn.MSELoss()
+        # tmp = out2.detach().clone()
+        # # loss1_2 = -crite2(out1, tmp)
+        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1)# + c1 #TODO how does the gradient go?
+        # loss1 = loss1 + c1
+        # # it seems like if we use bid1 in the () we will get bad results
         loss1 = loss1.sum()
         loss1/=pred1.shape[0]
         # loss1 += loss1_2
         with torch.autograd.detect_anomaly():
             loss1.backward()
         # if i == 1:
-        #     for name, parms in agent1.named_parameters():
+        #     for name, parms in agent2.named_parameters():
         #         print('-->name:', name, ' --> grad_value:', parms.grad)
         nn.utils.clip_grad_norm_(agent1.parameters(), max_norm=1)
         optimizer1.step()
 
+        # loss2 = F.cross_entropy(pred2, labels)
         pred2 = F.softmax(pred2, dim=1)
         bids2 = torch.stack([bid1.detach(), bid2], dim=1)
         probs2 = F.softmax(bids2, dim=1)
-        c2 = bid1.detach() * probs2[:, 0] + bid2 * probs2[:, 1] 
-        log_p2 = (torch.log(pred2+math.exp(-20)))
+        c2 =  bid2 * probs2[:, 1] #bid1.detach() * probs2[:, 0] + bid2 * probs2[:, 1] 
+        log_p2 = (torch.log(pred2+math.exp(-50)))
         one_hot = torch.zeros(pred2.shape,dtype=float,device='cuda:0').scatter_(1, torch.unsqueeze(labels, dim=1),1)
-        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1)*probs2[:,0] + c2
+        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1)# + c2
+        # loss2 = loss2 + c2
         # print(log_p1[0].detach().cpu())
         loss2 = loss2.sum()
         loss2/=pred2.shape[0]
