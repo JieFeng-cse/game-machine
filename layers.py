@@ -1,25 +1,62 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+class CNN_extractor(nn.Module):
+    def __init__(self):
+        super(CNN_extractor, self).__init__()
+        self.conv1 = nn.Conv2d(3,8,kernel_size=3,stride=1,padding=1) # 按照公式计算后经过卷积层不改变尺寸
+        self.pool = nn.MaxPool2d(2,2)
+        self.dp = nn.Dropout(p=0.5)
+        self.classifier =  nn.Sequential(nn.Linear(2*56*56*4*4,256),
+                                    nn.ReLU(),
+                                    nn.Linear(256,64),
+                                    nn.ReLU(),
+                                    nn.Linear(64, 2),
+                                    )
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.dp(x)
+        
+        return x
+
+class CNN_trainer(nn.Module):
+    def __init__(self):
+        super(CNN_trainer, self).__init__()
+        self.conv = CNN_extractor()
+        self.classifier =  nn.Sequential(nn.Linear(2*56*56*4*4,256),
+                                    nn.ReLU(),
+                                    nn.Linear(256,64),
+                                    nn.ReLU(),
+                                    nn.Linear(64, 2),
+                                    )
+    def forward(self, x):
+        x = self.conv(x)
+        x = x.view(-1, 2*56* 56 *4*4)
+        pred = self.classifier(x)
+        return pred
+
 class Agent(nn.Module):
     def __init__(self):
         super(Agent,self).__init__()     
-        self.feature_extract =  nn.Sequential(nn.Linear(8*56*56*2*2,256),
+        self.feature_extract =  nn.Sequential(nn.Linear(2*56*56*4*4,256),
                                     nn.ReLU(),
-                                #     nn.Dropout(),
+                                    nn.Dropout(),
                                     nn.Linear(256,64),
                                     nn.ReLU(),
                                     )
         self.conv1 = nn.Conv2d(3,8,kernel_size=3,stride=1,padding=1) # 按照公式计算后经过卷积层不改变尺寸
         self.pool = nn.MaxPool2d(2,2)
-        self.feature_extract_bid =  nn.Sequential(nn.Linear(8*56*56*2*2,256),
+        # self.cnn = CNN_extractor()
+        # self.cnn.load_state_dict(torch.load('./model/cnn_extractor.pt'))
+        # self.cnn.requires_grad = False
+        self.feature_extract_bid =  nn.Sequential(nn.Linear(2*56*56*4*4,256),
                                     nn.ReLU(),
-                                #     nn.Dropout(),
+                                    nn.Dropout(),
                                     nn.Linear(256,64),
                                     nn.ReLU(),
                                     )
         self.classifier = nn.Linear(64, 2) 
-        self.bidder = nn.Linear(64+2, 1)
+        self.bidder = nn.Linear(64, 1)
         self.dp = nn.Dropout(p=0.5)
         self.sca_fc = nn.Sigmoid()
         self.bn = nn.BatchNorm1d(1)
@@ -27,12 +64,14 @@ class Agent(nn.Module):
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.dp(x)
-        x = x.view(-1, 8 * 56* 56 *2*2)
+        # x = self.cnn(x)
+        # print(x.shape)/3*2
+        x = x.view(-1, 2*56* 56 *4*4)
         out = self.feature_extract(x)
-        out_bid = self.feature_extract_bid(x)
+        # out_bid = self.feature_extract_bid(x)
         pred = self.classifier(out)
         
-        bid = self.bidder(torch.cat([out_bid,pred], dim=1))
+        bid = self.bidder(out)
         bid = self.bn(bid)
         bid = self.sca_fc(bid)
 
