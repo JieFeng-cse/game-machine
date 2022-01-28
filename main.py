@@ -131,7 +131,7 @@ def train_seperate(e, train_loader, device, agent1, agent2, optimizer1, optimize
         dis1_1 = Normal(bid1-bid2.detach(), sigma)
         dis1_2 = Normal(bid1-bid2.detach()+ones_t, sigma)
         p_a1_loss = dis1_1.cdf(torch.zeros_like(bid1).to(device))
-        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid1+0.5)*(1-dis1_2.cdf(torch.ones_like(bid1)).to(device))
+        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid1+0.5)*(1-dis1_2.cdf(torch.zeros_like(bid1)).to(device))
         loss1 = loss1.sum()
         loss1/=pred1.shape[0]
 
@@ -146,7 +146,7 @@ def train_seperate(e, train_loader, device, agent1, agent2, optimizer1, optimize
         dis2_1 = Normal(bid2-bid1.detach(), sigma)
         dis2_2 = Normal(bid2-bid1.detach()+ones_t, sigma)
         p_a2_loss = dis2_1.cdf(torch.zeros_like(bid2).to(device))
-        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid2+0.5)*(1-dis2_2.cdf(torch.ones_like(bid2)).to(device))
+        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid2+0.5)*(1-dis2_2.cdf(torch.zeros_like(bid2)).to(device))
         loss2 = loss2.sum()
         loss2/=pred2.shape[0]        
     
@@ -438,7 +438,7 @@ if __name__ == "__main__":
     seed = 27#27 #0.7918 1710 with added loss, 0.78600, 1692 without added loss, 0.7916, half, 0.7858, single agent no bid
     # for seed in [13,25,51,101]:
     #     main(500, seed)
-    main(500, seed) # normal 1500,0.7768; 0.7858
+    # main(20000, seed) # normal 1500,0.7768; 0.7858
     # seeds = [0,18,25,26,28,42,53,102,114,115,132,172]
     global SEED
     SEED = seed
@@ -466,7 +466,7 @@ if __name__ == "__main__":
     
     
 
-    # test2(5499)
+    test2(5499)
     # for i in range(50):
     #     test2(5*i)
 
