@@ -73,7 +73,7 @@ class Agent(nn.Module):
         
         bid = self.bidder(out)
         bid = self.bn(bid)
-        bid = self.sca_fc(bid)
+        # bid = self.sca_fc(bid)
 
         return pred, bid, out
 
