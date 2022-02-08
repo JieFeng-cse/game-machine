@@ -123,17 +123,19 @@ def train_seperate(e, train_loader, device, agent1, agent2, optimizer1, optimize
         one_hot = torch.zeros(pred1.shape,dtype=float,device='cuda:0').scatter_(1, torch.unsqueeze(labels, dim=1),1)
 
         # loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * probs1[:,1] + c1 + F.smooth_l1_loss(bid1, bid2.detach())*flag
-        sigma = torch.ones_like(bid1).to(device)*torch.sqrt(torch.tensor([2])).to(device)
+        sigma = 0.1*torch.ones_like(bid1).to(device)*torch.sqrt(torch.tensor([2])).to(device)
         ones_t = torch.ones_like(bid1).to(device)
         dis1_1 = Normal(bid1-bid2.detach(), sigma)
-        dis1_2_fp = Normal(bid1-bid2.detach()+ones_t, sigma)
-        dis1_2_sp = Normal(bid1-bid2.detach()-ones_t, sigma)
+        dis1_2_fp = Normal(bid1-bid2.detach()+0.01*ones_t, sigma)
+        dis1_2_sp = Normal(bid1-bid2.detach()-0.01*ones_t, sigma)
         p_a1_loss = dis1_1.cdf(torch.zeros_like(bid1).to(device))
         a_1 = torch.sum(one_hot*log_p1,dim=1).unsqueeze(1)
         # loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid1+0.5)*(1-dis1_2.cdf(torch.zeros_like(bid1)).to(device))
-        fp_loss_1 = torch.exp(bid1+0.5)*(1-dis1_2_fp.cdf(torch.zeros_like(bid1)).to(device))
-        sp_loss_1 = torch.exp(bid2.detach()+0.5)*(1-dis1_2_sp.cdf(torch.zeros_like(bid1)).to(device)) 
-        loss1 = -a_1 * p_a1_loss + fp_loss_1*0.1+sp_loss_1*0.9 
+        fp_loss_1 = torch.exp(bid1+0.005)*(1-dis1_2_fp.cdf(torch.zeros_like(bid1)).to(device))
+        sp_loss_1 = torch.exp(bid2.detach()+0.005)*(1-dis1_2_sp.cdf(torch.zeros_like(bid1)).to(device)) 
+        # loss1 = -a_1 * p_a1_loss + fp_loss_1*0.1+sp_loss_1*0.9 
+        extra_bid1 = torch.clamp(torch.exp(bid1)-0.6931, min=0.0, max=10.0)
+        loss1 = -a_1 * p_a1_loss + sp_loss_1 + F.smooth_l1_loss(extra_bid1, torch.zeros_like(extra_bid1).to(device))
         # if i==1:
         #     print(format(bid1[0].item(), '.3f'),format(bid2[0].item(), '.3f'))
         #     # print(format(bid1[1].item(), '.3f'),format(bid2[1].item(), '.3f'))
@@ -152,14 +154,16 @@ def train_seperate(e, train_loader, device, agent1, agent2, optimizer1, optimize
         one_hot = torch.zeros(pred2.shape,dtype=float,device='cuda:0').scatter_(1, torch.unsqueeze(labels, dim=1),1)
         # loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * probs2[:,0] + c2 + F.smooth_l1_loss(bid1.detach(), bid2)*flag
         dis2_1 = Normal(bid2-bid1.detach(), sigma)
-        dis2_2_fp = Normal(bid2-bid1.detach()+ones_t, sigma) #fp means first price
-        dis2_2_sp = Normal(bid2-bid1.detach()-ones_t, sigma)
+        dis2_2_fp = Normal(bid2-bid1.detach()+0.01*ones_t, sigma) #fp means first price
+        dis2_2_sp = Normal(bid2-bid1.detach()-0.01*ones_t, sigma)
         p_a2_loss = dis2_1.cdf(torch.zeros_like(bid2).to(device))
         a_2 = torch.sum(one_hot*log_p2,dim=1).unsqueeze(1)
         # loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid2+0.5)*(1-dis2_2.cdf(torch.zeros_like(bid2)).to(device))
-        fp_loss_2 = torch.exp(bid2+0.5)*(1-dis2_2_fp.cdf(torch.zeros_like(bid2)).to(device))
-        sp_loss_2 = torch.exp(bid1.detach()+0.5)*(1-dis2_2_sp.cdf(torch.zeros_like(bid2)).to(device)) 
-        loss2 = -a_2 * p_a2_loss + fp_loss_2*0.1 + sp_loss_2*0.9
+        fp_loss_2 = torch.exp(bid2+0.005)*(1-dis2_2_fp.cdf(torch.zeros_like(bid2)).to(device))
+        sp_loss_2 = torch.exp(bid1.detach()+0.005)*(1-dis2_2_sp.cdf(torch.zeros_like(bid2)).to(device)) 
+        extra_bid2 = torch.clamp(torch.exp(bid2)-0.6931, min=0.0, max=10.0)
+        # loss2 = -a_2 * p_a2_loss + fp_loss_2*0.1 + sp_loss_2*0.9
+        loss2 = -a_2 * p_a2_loss + sp_loss_2 + F.smooth_l1_loss(extra_bid2, torch.zeros_like(extra_bid2).to(device))
         # if i==1:
         #     tmp_bid = torch.exp(bid1.detach()+0.5)[0].item()
         #     tmp_prob = (1-dis2_2.cdf(torch.zeros_like(bid1)))[0].item()
@@ -212,9 +216,9 @@ def eval_seperate(e, eval_loader, device, agent1, agent2, writer):
         labels = labels.to(device)
         pred1, bid1, _ = agent1(images)
         pred2, bid2, _ = agent2(images)
-        # if i==1:
-        #     print(bid1[0].detach(),bid2[0].detach(),pred1[0].detach())
-        #     print(bid1[1].detach(),bid2[1].detach(),pred1[1].detach())
+        if i==1:
+            print(bid1[0].detach(),bid2[0].detach(),pred1[0].detach())
+            print(bid1[1].detach(),bid2[1].detach(),pred1[1].detach())
 
         # loss1 = F.cross_entropy(pred1, labels)
         pred1 = F.softmax(pred1, dim=1)
@@ -224,14 +228,14 @@ def eval_seperate(e, eval_loader, device, agent1, agent2, writer):
         log_p1 = (torch.log(pred1+math.exp(-70)))
         one_hot = torch.zeros(pred1.shape,dtype=float,device='cuda:0').scatter_(1, torch.unsqueeze(labels, dim=1),1)
         # loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * probs1[:,1] + c1 
-        sigma = torch.ones_like(bid1).to(device)*torch.sqrt(torch.tensor([2])).to(device)
+        sigma = 0.1*torch.ones_like(bid1).to(device)*torch.sqrt(torch.tensor([2])).to(device)
         ones_t = torch.ones_like(bid1).to(device)
         dis1_1 = Normal(bid1-bid2.detach(), sigma)
         # dis1_2 = Normal(bid1-bid2.detach()+ones_t, sigma)
-        dis1_2 = Normal(bid1-bid2.detach()-ones_t, sigma)
+        dis1_2 = Normal(bid1-bid2.detach()-0.01*ones_t, sigma)
         p_a1_loss = dis1_1.cdf(torch.zeros_like(bid1).to(device))
         # loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid1+0.5)*(1-dis1_2.cdf(torch.zeros_like(bid1)).to(device))
-        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid2.detach()+0.5)*(1-dis1_2.cdf(torch.zeros_like(bid1)).to(device))
+        loss1 = -torch.sum(one_hot*log_p1,dim=1).unsqueeze(1) * p_a1_loss + torch.exp(bid2.detach()+0.005)*(1-dis1_2.cdf(torch.zeros_like(bid1)).to(device))
         loss1 = loss1.sum()
         loss1/=pred1.shape[0]
 
@@ -244,10 +248,10 @@ def eval_seperate(e, eval_loader, device, agent1, agent2, writer):
         # loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * probs2[:,0] + c2
         dis2_1 = Normal(bid2-bid1.detach(), sigma)
         # dis2_2 = Normal(bid2-bid1.detach()+ones_t, sigma)
-        dis2_2 = Normal(bid2-bid1.detach()-ones_t, sigma)
+        dis2_2 = Normal(bid2-bid1.detach()-0.01*ones_t, sigma)
         p_a2_loss = dis2_1.cdf(torch.zeros_like(bid2).to(device))
         # loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid2+0.5)*(1-dis2_2.cdf(torch.zeros_like(bid2)).to(device))
-        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid1.detach()+0.5)*(1-dis2_2.cdf(torch.zeros_like(bid2)).to(device))
+        loss2 = -torch.sum(one_hot*log_p2,dim=1).unsqueeze(1) * p_a2_loss + torch.exp(bid1.detach()+0.005)*(1-dis2_2.cdf(torch.zeros_like(bid2)).to(device))
         loss2 = loss2.sum()
         loss2/=pred2.shape[0]
 
@@ -314,8 +318,8 @@ def main(epochs, seed):
                 model_pth = './model'
                 if not os.path.exists(model_pth):
                     os.mkdir(model_pth)
-                model1_pth = os.path.join(model_pth, f'cnnmodel1t{SEED}_sto_sps_best.pt') #nl means no penalty loss
-                model2_pth = os.path.join(model_pth, f'cnnmodel2t{SEED}_sto_sps_best.pt')
+                model1_pth = os.path.join(model_pth, f'cnnmodel1t{SEED}_sto_bound_best.pt') #nl means no penalty loss
+                model2_pth = os.path.join(model_pth, f'cnnmodel2t{SEED}_sto_bound_best.pt')
                 torch.save(agent1,model1_pth)
                 torch.save(agent2,model2_pth)
                 print("model saved")
@@ -323,8 +327,8 @@ def main(epochs, seed):
                 model_pth = './model'
                 if not os.path.exists(model_pth):
                     os.mkdir(model_pth)
-                model1_pth = os.path.join(model_pth, f'cnnmodel1t{SEED}_sto_sps_{e}.pt') #nl means no penalty loss
-                model2_pth = os.path.join(model_pth, f'cnnmodel2t{SEED}_sto_sps_{e}.pt')
+                model1_pth = os.path.join(model_pth, f'cnnmodel1t{SEED}_sto_bound_{e}.pt') #nl means no penalty loss
+                model2_pth = os.path.join(model_pth, f'cnnmodel2t{SEED}_sto_bound_{e}.pt')
                 torch.save(agent1,model1_pth)
                 torch.save(agent2,model2_pth)
     print(best_acc)
@@ -376,8 +380,8 @@ def test2(e_num):
     # pth2=f'model/50cnnmodel2t{SEED}nl.pt'
     pth1 = f'model/cnnmodel1t{SEED}_sto_sps_{e_num}.pt'
     pth2 = f'model/cnnmodel2t{SEED}_sto_sps_{e_num}.pt'
-    pth1 = f'model/cnnmodel1t{SEED}_sto_sps_best.pt'
-    pth2 = f'model/cnnmodel2t{SEED}_sto_sps_best.pt'
+    pth1 = f'model/cnnmodel1t{SEED}_sto_fuse_best.pt'
+    pth2 = f'model/cnnmodel2t{SEED}_sto_fuse_best.pt'
     # pth1='model/model1.pt'
     # pth2='model/model2.pt'
     test_agent1=torch.load(pth1)
@@ -390,7 +394,7 @@ def test2(e_num):
 
     validate_loader = torch.utils.data.DataLoader(train_ds, batch_size=4,
                                                 shuffle=True, pin_memory=True, num_workers=8)
-    save_pth = f'50cnn_log{SEED}_sto_best.txt'
+    save_pth = f'50cnn_log{SEED}_sto_fuse_best.txt'
     test_write(save_pth, validate_loader,device,test_agent1,test_agent2)
 
 def test_write(save_pth, eval_loader, device, agent1, agent2):
@@ -451,7 +455,7 @@ if __name__ == "__main__":
     seed = 27#27 #0.7918 1710 with added loss, 0.78600, 1692 without added loss, 0.7916, half, 0.7858, single agent no bid
     # for seed in [13,25,51,101]:
     #     main(500, seed)
-    # main(20000, seed) # normal 1500,0.7768; 0.7858
+    main(20000, seed) # normal 1500,0.7768; 0.7858
     # seeds = [0,18,25,26,28,42,53,102,114,115,132,172]
     global SEED
     SEED = seed
@@ -479,7 +483,7 @@ if __name__ == "__main__":
     
     
 
-    test2(999)
+    # test2(999)
     # for i in range(50):
     #     test2(5*i)
 
